@@ -20,9 +20,23 @@
 </head>
 <body>
 <div id="app">
-  <nav id="sidebar"></nav>
-  <main id="main"></main>
+  <nav id="sidebar" class="drawer" aria-label="Navigation principale"></nav>
+
+  <div class="main-col">
+    <header class="appbar">
+      <button id="menuBtn" class="icon-btn" aria-label="Ouvrir le menu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+      <div class="appbar-title" id="appbarTitle">Accueil</div>
+      <div class="appbar-prog" id="appbarProg" title="Progression globale"></div>
+    </header>
+
+    <main id="main" class="content"></main>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
 </div>
+
 <script src="data.js"></script>
 <script src="app.js"></script>
 <script>
