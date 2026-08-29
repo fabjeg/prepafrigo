@@ -1,6 +1,6 @@
 // PrépaFrigo service worker — offline support via stale-while-revalidate.
 // Bump CACHE when core files change to force a clean refresh.
-const CACHE = "prepafrigo-v1";
+const CACHE = "prepafrigo-v2";
 const CORE = [
   "./",
   "./index.html",

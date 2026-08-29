@@ -43,7 +43,7 @@ function globalProgressPct() {
 }
 
 function renderSidebar() {
-  let html = `<h1>🧊 Frigo CAT 1-5</h1><p class="subtitle">Habilitation fluide — Théorie &amp; Pratique</p>`;
+  let html = `<div class="brand"><img class="brand-logo" src="icon.svg" alt="PrépaFrigo" width="42" height="42"><div class="brand-txt"><h1>PrépaFrigo</h1><p class="subtitle">Habilitation fluide — CAT 1-5</p></div></div>`;
 
   html += `<div class="nav-item ${currentView.type === "home" ? "active" : ""}" onclick="goHome()">🏠 Accueil</div>`;
 
