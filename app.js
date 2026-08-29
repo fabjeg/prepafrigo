@@ -423,7 +423,7 @@ function buildBot() {
   const fab = document.createElement("button");
   fab.id = "botFab"; fab.className = "bot-fab"; fab.setAttribute("aria-label", "Assistant révision"); fab.innerHTML = CHAT_SVG;
   const panel = document.createElement("div");
-  panel.id = "botPanel"; panel.className = "bot-panel"; panel.hidden = true;
+  panel.id = "botPanel"; panel.className = "bot-panel";
   panel.innerHTML = `
     <div class="bot-head"><div class="bot-title">💬 Assistant révision</div><button class="bot-close" aria-label="Fermer">✕</button></div>
     <div class="bot-msgs" id="botMsgs"></div>
@@ -450,8 +450,8 @@ function buildBot() {
     msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
   }
   function ask(q) { addUser(q); setTimeout(() => addBot(botAnswer(q)), 130); }
-  function openBot() { panel.hidden = false; fab.classList.add("hidden"); setTimeout(() => input.focus(), 60); }
-  function closeBot() { panel.hidden = true; fab.classList.remove("hidden"); }
+  function openBot() { panel.classList.add("open"); fab.classList.add("hidden"); setTimeout(() => input.focus(), 60); }
+  function closeBot() { panel.classList.remove("open"); fab.classList.remove("hidden"); }
 
   addBot({ type: null, html: "Salut 👋 Je suis ton assistant de révision. Pose-moi une question sur le programme (fluides, pressions, réglementation, sécurité…) et je réponds à partir du cours.", sources: [] });
   const suggestions = (typeof FLASHCARDS !== "undefined" ? FLASHCARDS : []).map(f => f.front).filter(t => t.length < 46).slice(0, 6);
@@ -460,7 +460,7 @@ function buildBot() {
   fab.addEventListener("click", openBot);
   panel.querySelector(".bot-close").addEventListener("click", closeBot);
   form.addEventListener("submit", (e) => { e.preventDefault(); const v = input.value.trim(); if (!v) return; input.value = ""; ask(v); });
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !panel.hidden) closeBot(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && panel.classList.contains("open")) closeBot(); });
 }
 
 /* ---------- Router ---------- */

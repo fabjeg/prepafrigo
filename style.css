@@ -298,12 +298,12 @@ html[data-theme="light"] .qcm-option.wrong { color: #b32330; }
 .bot-fab.hidden { display: none; }
 
 .bot-panel {
-  position: fixed; z-index: 80; display: flex; flex-direction: column;
+  position: fixed; z-index: 80; display: none; flex-direction: column;
   background: var(--bg-panel); border: 1px solid var(--border);
   box-shadow: 0 -8px 40px rgba(0,0,0,.4);
   left: 0; right: 0; bottom: 0; height: 80vh; border-radius: 18px 18px 0 0;
-  animation: botIn .22s ease;
 }
+.bot-panel.open { display: flex; animation: botIn .22s ease; }
 @keyframes botIn { from { transform: translateY(16px); opacity: .4; } to { transform: none; opacity: 1; } }
 @media (min-width: 601px) {
   .bot-panel { left: auto; right: 20px; bottom: 20px; width: 392px; height: 560px; max-height: 82vh; border-radius: 18px; }
