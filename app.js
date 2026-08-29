@@ -25,6 +25,26 @@ const appbarTitleEl = document.getElementById("appbarTitle");
 const appbarProgEl = document.getElementById("appbarProg");
 const scrimEl = document.getElementById("scrim");
 const menuBtn = document.getElementById("menuBtn");
+const themeBtn = document.getElementById("themeBtn");
+
+/* ---------- Thème clair / sombre ---------- */
+const THEME_KEY = "prepafrigo_theme";
+const SUN_SVG = `<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><line x1="12" y1="2.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21.5" y2="12"/><line x1="4.9" y1="4.9" x2="6.7" y2="6.7"/><line x1="17.3" y1="17.3" x2="19.1" y2="19.1"/><line x1="19.1" y1="4.9" x2="17.3" y2="6.7"/><line x1="6.7" y1="17.3" x2="4.9" y2="19.1"/></svg>`;
+const MOON_SVG = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>`;
+function currentTheme() { return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark"; }
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", t === "light" ? "#f7fafd" : "#0f1720");
+  if (themeBtn) {
+    themeBtn.innerHTML = t === "light" ? MOON_SVG : SUN_SVG;
+    themeBtn.setAttribute("aria-label", t === "light" ? "Passer en mode sombre" : "Passer en mode clair");
+  }
+}
+function toggleTheme() { applyTheme(currentTheme() === "light" ? "dark" : "light"); }
+if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+applyTheme(currentTheme());
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -332,6 +352,117 @@ function renderPdf() {
   mainEl.innerHTML = html;
 }
 
+/* ---------- Assistant local (bot) ---------- */
+let KB = [];
+const CHAT_SVG = `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.5 8.5 0 0 1-12.3 7.6L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg>`;
+
+function norm(s) { return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+const STOP = new Set(norm("le la les un une des de du d l et ou a à en y que qui quoi est sont ce cet cette ces quel quelle quels quelles pour dans sur avec comment combien pourquoi quand ou son sa ses au aux par ne pas plus se qu on nous vous il elle je tu me te mon ma mes ton ta si oui non fait faire quels").split(/\s+/));
+function tok(s) { return norm(s).replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(w => w.length > 2 && !STOP.has(w)); }
+
+function buildKB() {
+  KB = [];
+  if (typeof FLASHCARDS !== "undefined") {
+    FLASHCARDS.forEach(f => KB.push({ type: "Flashcard", q: f.front, a: f.back, tokens: tok(f.front + " " + f.back) }));
+  }
+  CHAPTERS.forEach(c => {
+    c.questions.forEach(q => {
+      const ans = q.options[q.a];
+      KB.push({ type: "QCM", q: q.q, a: `<b>${ans}</b>. ${q.explain}`, chapterId: c.id, chapterNum: c.num, chapterTitle: c.title, tokens: tok(q.q + " " + ans + " " + q.explain) });
+    });
+    const d = document.createElement("div");
+    d.innerHTML = c.html;
+    d.querySelectorAll("h3, p, li").forEach(el => {
+      const t = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (t.length >= 30) KB.push({ type: "Cours", q: null, a: t, chapterId: c.id, chapterNum: c.num, chapterTitle: c.title, tokens: tok(t) });
+    });
+  });
+  const df = {};
+  KB.forEach(doc => new Set(doc.tokens).forEach(t => df[t] = (df[t] || 0) + 1));
+  KB._df = df; KB._N = KB.length;
+}
+
+function searchKB(query) {
+  const qt = tok(query);
+  if (!qt.length) return [];
+  const df = KB._df, N = KB._N;
+  const scored = [];
+  KB.forEach(doc => {
+    const set = new Set(doc.tokens); let s = 0, hits = 0;
+    qt.forEach(t => { if (set.has(t)) { hits++; s += Math.log(1 + N / ((df[t] || 0) + 1)); } });
+    if (hits === 0) return;
+    const boost = doc.type === "Flashcard" ? 1.3 : doc.type === "QCM" ? 1.15 : 1;
+    scored.push({ doc, score: s * boost * (0.4 + hits / qt.length), cov: hits / qt.length });
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored;
+}
+
+function botAnswer(query) {
+  const res = searchKB(query);
+  if (!res.length || res[0].cov < 0.34) {
+    const near = res[0] && res[0].doc.chapterId ? res[0].doc : null;
+    return {
+      type: null,
+      html: "Je n'ai pas trouvé de réponse précise dans le cours 🤔 Reformule avec d'autres mots-clés" + (near ? ", ou regarde le chapitre suggéré ci-dessous." : "."),
+      sources: near ? [{ id: near.chapterId, num: near.chapterNum, title: near.chapterTitle }] : [],
+    };
+  }
+  const top = res[0].doc;
+  const html = top.q ? `<div class="bot-q">${top.q}</div>${top.a}` : top.a;
+  const sources = []; const seen = new Set();
+  res.slice(0, 6).forEach(r => {
+    const d = r.doc;
+    if (d.chapterId && !seen.has(d.chapterId)) { seen.add(d.chapterId); sources.push({ id: d.chapterId, num: d.chapterNum, title: d.chapterTitle }); }
+  });
+  return { type: top.type, html, sources: sources.slice(0, 3) };
+}
+
+function buildBot() {
+  buildKB();
+  const fab = document.createElement("button");
+  fab.id = "botFab"; fab.className = "bot-fab"; fab.setAttribute("aria-label", "Assistant révision"); fab.innerHTML = CHAT_SVG;
+  const panel = document.createElement("div");
+  panel.id = "botPanel"; panel.className = "bot-panel"; panel.hidden = true;
+  panel.innerHTML = `
+    <div class="bot-head"><div class="bot-title">💬 Assistant révision</div><button class="bot-close" aria-label="Fermer">✕</button></div>
+    <div class="bot-msgs" id="botMsgs"></div>
+    <div class="bot-chips" id="botChips"></div>
+    <form class="bot-input" id="botForm"><input id="botInput" type="text" placeholder="Pose ta question…" autocomplete="off" enterkeyhint="send"><button type="submit" aria-label="Envoyer">➤</button></form>`;
+  document.body.appendChild(fab);
+  document.body.appendChild(panel);
+
+  const msgs = panel.querySelector("#botMsgs");
+  const chipsBox = panel.querySelector("#botChips");
+  const form = panel.querySelector("#botForm");
+  const input = panel.querySelector("#botInput");
+
+  function addUser(text) { const el = document.createElement("div"); el.className = "bot-msg user"; el.textContent = text; msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight; }
+  function addBot(ans) {
+    const el = document.createElement("div"); el.className = "bot-msg bot";
+    let h = ans.type ? `<div class="bot-type">${ans.type}</div>` : "";
+    h += ans.html;
+    if (ans.sources && ans.sources.length) {
+      h += `<div class="bot-src">` + ans.sources.map(s => `<span class="bot-src-chip" data-ch="${s.id}">Ch. ${s.num} · ${s.title}</span>`).join("") + `</div>`;
+    }
+    el.innerHTML = h;
+    el.querySelectorAll(".bot-src-chip").forEach(chip => chip.addEventListener("click", () => { closeBot(); nav("#/chapitre/" + chip.getAttribute("data-ch")); }));
+    msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+  }
+  function ask(q) { addUser(q); setTimeout(() => addBot(botAnswer(q)), 130); }
+  function openBot() { panel.hidden = false; fab.classList.add("hidden"); setTimeout(() => input.focus(), 60); }
+  function closeBot() { panel.hidden = true; fab.classList.remove("hidden"); }
+
+  addBot({ type: null, html: "Salut 👋 Je suis ton assistant de révision. Pose-moi une question sur le programme (fluides, pressions, réglementation, sécurité…) et je réponds à partir du cours.", sources: [] });
+  const suggestions = (typeof FLASHCARDS !== "undefined" ? FLASHCARDS : []).map(f => f.front).filter(t => t.length < 46).slice(0, 6);
+  suggestions.forEach(s => { const c = document.createElement("button"); c.type = "button"; c.className = "bot-chip"; c.textContent = s; c.addEventListener("click", () => ask(s)); chipsBox.appendChild(c); });
+
+  fab.addEventListener("click", openBot);
+  panel.querySelector(".bot-close").addEventListener("click", closeBot);
+  form.addEventListener("submit", (e) => { e.preventDefault(); const v = input.value.trim(); if (!v) return; input.value = ""; ask(v); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !panel.hidden) closeBot(); });
+}
+
 /* ---------- Router ---------- */
 const TITLES = { home: "Accueil", chapter: "Chapitre", qcm: "QCM", exam: "Examen final", flash: "Flashcards", pdf: "Support de cours" };
 
@@ -373,3 +504,4 @@ function render() {
 
 window.addEventListener("hashchange", render);
 render();
+buildBot();
